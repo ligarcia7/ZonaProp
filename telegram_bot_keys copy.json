@@ -1,0 +1,5 @@
+# Rename this file to: telegram_bot_keys.json & delete this line
+{
+    "botID":"Populate your bot ID",
+    "roomID":"Populate your room ID"
+}

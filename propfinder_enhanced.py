@@ -15,15 +15,49 @@ genericQueries = {
  }
 
 
-def get_telegram_keys():
-    with open('telegram_bot_keys.json') as f:
-        data = json.load(f)
-        botID, roomID = data.values()
-        return botID, roomID
+def get_telegram_keys(file_path='telegram_bot_keys.json'):
+    """
+    Load Telegram bot and chat room IDs from a JSON file.
+
+    Args:
+        file_path (str): Optional. The path and filename of the JSON file containing the bot and chat room IDs.
+            Default is 'telegram_bot_keys.json' in the current working directory.
+
+    Returns:
+        tuple: A tuple containing two strings - the bot ID and room ID - loaded from the JSON file.
+
+    Raises:
+        FileNotFoundError: If the 'telegram_bot_keys.json' file cannot be found in the specified directory.
+        json.JSONDecodeError: If the JSON data in the file is invalid.
+        KeyError: If the JSON data does not contain 'botID' or 'roomID' keys.
+    """
+    try:
+        with open(file_path) as f:
+            data = json.load(f)
+            botID, roomID = data.values()
+            return botID, roomID
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File '{file_path}' not found.")
+    except json.JSONDecodeError:
+        raise json.JSONDecodeError(f"Invalid JSON data in file '{file_path}'.")
+    except KeyError as e:
+        raise KeyError(f"JSON data in file '{file_path}' is missing key '{e.args[0]}'.")
 
 
 @dataclass
 class Parser:
+    """
+    A class that parses a website's HTML content and extracts links matching a specific regular expression.
+
+    Attributes:
+    website (str): The website from which the links will be extracted.
+    link_regex (str): The regular expression pattern used to match the links.
+
+    Methods:
+    extract_links(contents: str) -> generator:
+    Extracts links from the provided HTML content that match the link_regex pattern, and yields a dictionary
+    for each link containing an id and the full url constructed by concatenating the website and the link.
+    """
     website: str
     link_regex: str
 
@@ -45,12 +79,30 @@ parsers = [
 
 
 def extract_ads(url, text):
+    """
+    Extracts ads from the provided HTML content that match a specified regular expression pattern.
+
+    Args:
+    url (str): The URL of the website from which to extract ads.
+    text (str): The HTML content to search for ads.
+    Returns:
+    generator: A generator that yields a dictionary for each ad containing an id and the full url of the ad.
+    """
     uri = urlparse(url)
     parser = next(p for p in parsers if uri.hostname in p.website)
     return parser.extract_links(text)
 
 
 def split_seen_and_unseen(ads):
+    """
+    Splits a list of ads into two lists - seen and unseen.
+
+    Args:
+    ads (list): A list of ads, each represented by a dictionary containing an id and the full url of the ad.
+
+    Returns:
+    tuple: A tuple containing two lists - seen and unseen - where seen is a list of ads that have already been seen, and unseen is a list of ads that have not been seen.
+    """
     history = get_history()
     seen = [a for a in ads if a["id"] in history]
     unseen = [a for a in ads if a["id"] not in history]
@@ -58,12 +110,20 @@ def split_seen_and_unseen(ads):
 
 
 def sleep_func(min=1, max=5):
+    """
+    Delays program execution for a random amount of time between min and max seconds.
+    """
     delay = randint(min, max)
     print("Sleep " + str(delay) + "s")
     sleep(delay)
 
 
 def get_history():
+    """
+    Attempts to load a set of previously seen ads from a text file called "seen.txt" in the current working directory. If the file does not exist or cannot be loaded, an empty set is returned.
+    Returns:
+    set: A set of previously seen ad IDs.
+    """
     try:
         with open("seen.txt", "r") as f:
             return {l.rstrip() for l in f.readlines()}
@@ -72,21 +132,50 @@ def get_history():
 
 
 def telegram_notify(ad):
+    """
+    Sends a notification to a Telegram chat room containing the full URL of a new ad.
+    """
     botID, roomID = get_telegram_keys()
     url = "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}".format(botID, roomID, ad["url"])
     r = requests.get(url)
 
 
 def mark_as_seen(unseen):
+    """
+    Adds a set of unseen ads to a text file called "seen.txt" in the current working directory, marking them as seen.
+    """
     with open("seen.txt", "a+") as f:
         ids = ["{}\n".format(u["id"]) for u in unseen]
         f.writelines(ids)
 
 
 def url_composer(url, page=0):
+    """
+    Composes a URL string with an optional page number.
+    """
     if page != 0:
         url = url + "-pagina-" + str(page)
     return url + ".html"
+
+#Esta mejora la sugirio chatGPT es una buena practica? No probe si funciona
+def compose_url_with_page(url: str, page: int = 0, page_str: str = "-pagina-") -> str:
+    """
+    Composes a URL string with an optional page number.
+    :param url: The base URL.
+    :param page: The page number (default 0).
+    :param page_str: The string to use to separate the URL and the page number (default "-pagina-").
+    :return: The composed URL.
+    """
+    if not isinstance(url, str):
+        raise TypeError("URL must be a string")
+    if not isinstance(page, int):
+        raise TypeError("Page number must be an integer")
+    if page <= 0:
+        return url + ".html"
+    else:
+        return url + page_str + str(page) + ".html"
+
+
 
 
 def _main():

@@ -29,13 +29,13 @@ def get_telegram_keys(file_path='telegram_bot_keys.json'):
     Raises:
         FileNotFoundError: If the 'telegram_bot_keys.json' file cannot be found in the specified directory.
         json.JSONDecodeError: If the JSON data in the file is invalid.
-        KeyError: If the JSON data does not contain 'botID' or 'roomID' keys.
+        KeyError: If the JSON data does not contain 'bot_http_token' or 'roomID' keys.
     """
     try:
         with open(file_path) as f:
             data = json.load(f)
-            botID, roomID = data.values()
-            return botID, roomID
+            bot_http_token, roomID = data.values()
+            return bot_http_token, roomID
     except FileNotFoundError:
         raise FileNotFoundError(f"File '{file_path}' not found.")
     except json.JSONDecodeError:
@@ -48,6 +48,7 @@ def get_telegram_keys(file_path='telegram_bot_keys.json'):
 class Parser:
     """
     A class that parses a website's HTML content and extracts links matching a specific regular expression.
+    Making this class a dataclass is reasonable because it primarily stores data (website and link regex)
 
     Attributes:
     website (str): The website from which the links will be extracted.
@@ -70,27 +71,39 @@ class Parser:
             yield {"id": _id, "url": "{}{}".format(self.website, href)}
 
 
-parsers = [
-    # Parser(website="https://www.zonaprop.com.ar", link_regex="h2.sc-i1odl-10 a.sc-i1odl-11.hDkIKM"),
-    Parser(website="https://www.zonaprop.com.ar", link_regex="h2.sc-i1odl-10 a.sc-i1odl-11.kptTyQ"),
-    Parser(website="https://www.argenprop.com", link_regex="div.listing__items div.listing__item a"),
-    Parser(website="https://inmuebles.mercadolibre.com.ar", link_regex="li.results-item .rowItem.item a"),
-]
+class Extractor:
 
+    def __init__(self):
+        self.parsers = self.load_parsers()
 
-def extract_ads(url, text):
-    """
-    Extracts ads from the provided HTML content that match a specified regular expression pattern.
+    def load_parsers(self, file_path='sites.json'):
+        parsers = []
+        try:
+            with open(file_path) as f:
+                data = json.load(f)
+                for site, link_regex in data.items():
+                    parsers.append(Parser(website=site, link_regex=link_regex))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File '{file_path}' not found.")
+        except json.JSONDecodeError:
+            raise json.JSONDecodeError(f"Invalid JSON data in file '{file_path}'.")
+        except KeyError as e:
+            raise KeyError(f"JSON data in file '{file_path}' is missing key '{e.args[0]}'.")
+        return parsers
 
-    Args:
-    url (str): The URL of the website from which to extract ads.
-    text (str): The HTML content to search for ads.
-    Returns:
-    generator: A generator that yields a dictionary for each ad containing an id and the full url of the ad.
-    """
-    uri = urlparse(url)
-    parser = next(p for p in parsers if uri.hostname in p.website)
-    return parser.extract_links(text)
+    def extract_ads(self, url, text):
+        """
+        Extracts ads from the provided HTML content that match a specified regular expression pattern.
+
+        Args:
+        url (str): The URL of the website from which to extract ads.
+        text (str): The HTML content to search for ads.
+        Returns:
+        generator: A generator that yields a dictionary for each ad containing an id and the full url of the ad.
+        """
+        uri = urlparse(url)
+        parser = next(p for p in self.parsers if uri.hostname in p.website)
+        return parser.extract_links(text)
 
 
 def split_seen_and_unseen(ads):
@@ -176,8 +189,6 @@ def compose_url_with_page(url: str, page: int = 0, page_str: str = "-pagina-") -
         return url + page_str + str(page) + ".html"
 
 
-
-
 def _main():
     scraper = cloudscraper.create_scraper(browser={
         'custom': 'ScraperBot/1.0'
@@ -194,8 +205,8 @@ def _main():
             except:
                 sleep_func()
                 res = scraper.get(url)
-
-            ads = list(extract_ads(url, res.text))
+            extractor = Extractor()
+            ads = list(extractor.extract_ads(url, res.text))
             if not len(ads):
                 print("Not able to extract ads, check regex.")
             seen, unseen = split_seen_and_unseen(ads)
@@ -208,7 +219,6 @@ def _main():
             mark_as_seen(unseen)
 
             print("Done")
-            #if len(seen):
             if page != 20:
                 page += 1
                 sleep_func()

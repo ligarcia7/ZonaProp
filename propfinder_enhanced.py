@@ -167,7 +167,7 @@ def url_paginator(url: str, page: int = 0) -> str:
     """
     Composes a URL string with an optional page number.
     """
-    return f'{url}-pagina-{page}' if page else url
+    return f'{url[:-len(".html")]}-pagina-{page}.html' if page else url
 
 
 def _main() -> None:

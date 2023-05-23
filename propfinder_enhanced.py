@@ -7,15 +7,15 @@ import cloudscraper
 from time import sleep
 from random import randint
 import json
-
+from typing import Generator
 
 genericQueries = {
- "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-3-habitaciones-mas-de-1-garage-30000-230000-dolar-orden-publicado-descendente",
- "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-2-habitaciones-mas-de-1-garage-30000-200000-dolar-orden-publicado-descendente",
- }
+ "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-3-habitaciones-mas-de-1-garage-30000-230000-dolar-orden-publicado-descendente.html",
+ "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-2-habitaciones-mas-de-1-garage-30000-200000-dolar-orden-publicado-descendente.html",
+}
 
 
-def get_telegram_keys(file_path='telegram_bot_keys.json'):
+def get_telegram_keys(file_path: str = 'telegram_bot_keys.json') -> tuple[str, str]:
     """
     Load Telegram bot and chat room IDs from a JSON file.
 
@@ -62,7 +62,7 @@ class Parser:
     website: str
     link_regex: str
 
-    def extract_links(self, contents: str):
+    def extract_links(self, contents: str) -> dict[str, str]:
         soup = BeautifulSoup(contents, "lxml")
         ads = soup.select(self.link_regex)
         for ad in ads:
@@ -73,10 +73,11 @@ class Parser:
 
 class Extractor:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.parsers = self.load_parsers()
 
-    def load_parsers(self, file_path='sites.json'):
+    @staticmethod
+    def load_parsers(file_path: str = 'sites.json') -> list[Parser]:
         parsers = []
         try:
             with open(file_path) as f:
@@ -91,7 +92,7 @@ class Extractor:
             raise KeyError(f"JSON data in file '{file_path}' is missing key '{e.args[0]}'.")
         return parsers
 
-    def extract_ads(self, url, text):
+    def extract_ads(self, url: str, text: str) -> Generator:  # TODO: make type hinting more specific for Generator
         """
         Extracts ads from the provided HTML content that match a specified regular expression pattern.
 
@@ -106,7 +107,7 @@ class Extractor:
         return parser.extract_links(text)
 
 
-def split_seen_and_unseen(ads):
+def split_seen_and_unseen(ads: dict) -> tuple[list, list]:  # TODO: Make dict type hinting more specific
     """
     Splits a list of ads into two lists - seen and unseen.
 
@@ -122,16 +123,16 @@ def split_seen_and_unseen(ads):
     return seen, unseen
 
 
-def sleep_func(min=1, max=5):
+def sleep_func(_min: int = 1, _max: int = 5) -> None:
     """
     Delays program execution for a random amount of time between min and max seconds.
     """
-    delay = randint(min, max)
+    delay = randint(_min, _max)
     print("Sleep " + str(delay) + "s")
     sleep(delay)
 
 
-def get_history():
+def get_history():  # TODO: this can return both a dict or a set. Make it consistent.
     """
     Attempts to load a set of previously seen ads from a text file called "seen.txt" in the current working directory. If the file does not exist or cannot be loaded, an empty set is returned.
     Returns:
@@ -144,16 +145,16 @@ def get_history():
         return set()
 
 
-def telegram_notify(ad):
+def telegram_notify(ad: dict) -> None:  # TODO: Make dict type hinting more specific
     """
     Sends a notification to a Telegram chat room containing the full URL of a new ad.
     """
     botID, roomID = get_telegram_keys()
     url = "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}".format(botID, roomID, ad["url"])
-    r = requests.get(url)
+    _ = requests.get(url)
 
 
-def mark_as_seen(unseen):
+def mark_as_seen(unseen: list) -> None: # TODO: Make list type hinting more specific
     """
     Adds a set of unseen ads to a text file called "seen.txt" in the current working directory, marking them as seen.
     """
@@ -162,34 +163,14 @@ def mark_as_seen(unseen):
         f.writelines(ids)
 
 
-def url_composer(url, page=0):
+def url_paginator(url: str, page: int = 0) -> str:
     """
     Composes a URL string with an optional page number.
     """
-    if page != 0:
-        url = url + "-pagina-" + str(page)
-    return url + ".html"
-
-#Esta mejora la sugirio chatGPT es una buena practica? No probe si funciona
-def compose_url_with_page(url: str, page: int = 0, page_str: str = "-pagina-") -> str:
-    """
-    Composes a URL string with an optional page number.
-    :param url: The base URL.
-    :param page: The page number (default 0).
-    :param page_str: The string to use to separate the URL and the page number (default "-pagina-").
-    :return: The composed URL.
-    """
-    if not isinstance(url, str):
-        raise TypeError("URL must be a string")
-    if not isinstance(page, int):
-        raise TypeError("Page number must be an integer")
-    if page <= 0:
-        return url + ".html"
-    else:
-        return url + page_str + str(page) + ".html"
+    return f'{url[:-len(".html")]}-pagina-{page}.html' if page else url
 
 
-def _main():
+def _main() -> None:
     scraper = cloudscraper.create_scraper(browser={
         'custom': 'ScraperBot/1.0'
     }, delay=10)
@@ -198,7 +179,7 @@ def _main():
         page = 0
 
         while True:
-            url = url_composer(query, page=page)
+            url = url_paginator(query, page=page)
             print("Extracting from: ", url)
             try:
                 res = scraper.get(url)
@@ -208,6 +189,7 @@ def _main():
             extractor = Extractor()
             ads = list(extractor.extract_ads(url, res.text))
             if not len(ads):
+                #  TODO: Use logging instead of print()
                 print("Not able to extract ads, check regex.")
             seen, unseen = split_seen_and_unseen(ads)
 

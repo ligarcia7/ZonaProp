@@ -1,3 +1,5 @@
 telegram_bot_keys.json
 telegram_bot_keys copy.json
+seen.txt
 .idea/*
+**/__pycache__/

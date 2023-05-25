@@ -127,7 +127,7 @@ def split_seen_and_unseen(ads: dict) -> 'tuple[list, list]':  # TODO: Make dict 
     Returns:
     tuple: A tuple containing two lists - seen and unseen - where seen is a list of ads that have already been seen, and unseen is a list of ads that have not been seen.
     """
-    history = get_history()
+    history = get_history(filename='seen.txt')
     seen = [a for a in ads if a["id"] in history]
     unseen = [a for a in ads if a["id"] not in history]
     return seen, unseen
@@ -141,17 +141,28 @@ def sleep_func(_min: int = 1, _max: int = 5) -> None:
     logging.info(f"Sleeping for {delay} s")
     sleep(delay)
 
-def get_history():  # TODO: this can return both a dict or a set. Make it consistent.
+
+def create_seen_file(filename: str) -> 'dict':
+    """
+    Creates file and return an empty dictorionaty
+    """
+    with open(filename, "w") as f:
+        logging.info('%s has been created.')
+        return {}
+
+
+def get_history(filename: str) -> 'dict[str]':
     """
     Attempts to load a set of previously seen ads from a text file called "seen.txt" in the current working directory. If the file does not exist or cannot be loaded, an empty set is returned.
     Returns:
     set: A set of previously seen ad IDs.
     """
     try:
-        with open("seen.txt", "r") as f:
+        with open(filename, "r") as f:
             return {l.rstrip() for l in f.readlines()}
-    except:
-        return set()
+    except FileNotFoundError:
+        logging.info('%s not found.')
+        create_seen_file(filename)
 
 
 def telegram_notify(ad: dict) -> None:  # TODO: Make dict type hinting more specific
@@ -202,12 +213,13 @@ def _main() -> None:
 
             mark_as_seen(unseen)
 
-            logging.info("Done")
-            if page != 20:
+            if len(unseen) != 0:
                 page += 1
                 sleep_func()
             else:
+                logging.info('No unseen ads. Moving on.')
                 break
+    logging.info('Process completed.')
 
 
 if __name__ == "__main__":

@@ -8,6 +8,13 @@ from time import sleep
 from random import randint
 import json
 from typing import Generator
+import logging
+
+logging.basicConfig(
+         format='%(asctime)s %(levelname)-8s %(message)s',
+         level=logging.DEBUG,
+         datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 genericQueries = {
  "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-3-habitaciones-mas-de-1-garage-30000-230000-dolar-orden-publicado-descendente.html",
@@ -65,6 +72,9 @@ class Parser:
     def extract_links(self, contents: str) -> dict[str, str]:
         soup = BeautifulSoup(contents, "lxml")
         ads = soup.select(self.link_regex)
+        if not ads:
+            logging.warning("Not able to extract ads in %s, check regex: %s", self.website, self.link_regex)
+            yield {}
         for ad in ads:
             href = ad["href"]
             _id = sha1(href.encode("utf-8")).hexdigest()
@@ -128,9 +138,8 @@ def sleep_func(_min: int = 1, _max: int = 5) -> None:
     Delays program execution for a random amount of time between min and max seconds.
     """
     delay = randint(_min, _max)
-    print("Sleep " + str(delay) + "s")
+    logging.info(f"Sleeping for {delay} s")
     sleep(delay)
-
 
 def get_history():  # TODO: this can return both a dict or a set. Make it consistent.
     """
@@ -180,27 +189,20 @@ def _main() -> None:
 
         while True:
             url = url_paginator(query, page=page)
-            print("Extracting from: ", url)
-            try:
-                res = scraper.get(url)
-            except:
-                sleep_func()
-                res = scraper.get(url)
+            logging.debug("Extracting from: %s", url)
+            res = scraper.get(url)
             extractor = Extractor()
             ads = list(extractor.extract_ads(url, res.text))
-            if not len(ads):
-                #  TODO: Use logging instead of print()
-                print("Not able to extract ads, check regex.")
-            seen, unseen = split_seen_and_unseen(ads)
 
-            print("{} seen, {} unseen".format(len(seen), len(unseen)))
+            seen, unseen = split_seen_and_unseen(ads)
+            logging.info("%s seen ads, %s unseen ads", len(seen), len(unseen))
 
             for u in unseen:
                 telegram_notify(u)
 
             mark_as_seen(unseen)
 
-            print("Done")
+            logging.info("Done")
             if page != 20:
                 page += 1
                 sleep_func()

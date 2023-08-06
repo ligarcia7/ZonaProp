@@ -24,7 +24,7 @@ genericQueries = {
 }
 
 
-def get_telegram_keys(file_path: str = 'telegram_bot_keys.json') -> 'tuple[str, str]':
+def get_telegram_keys(file_path: str = 'telegram_bot_keys.json') -> tuple[str, str]:
     """
     Load Telegram bot and chat room IDs from a JSON file.
 
@@ -71,7 +71,7 @@ class Parser:
     website: str
     link_regex: str
 
-    def extract_links(self, contents: str) -> 'dict[str, str]':
+    def extract_links(self, contents: str) -> dict[str, str]:
         soup = BeautifulSoup(contents, "lxml")
         ads = soup.select(self.link_regex)
         if not ads:
@@ -89,7 +89,7 @@ class Extractor:
         self.parsers = self.load_parsers()
 
     @staticmethod
-    def load_parsers(file_path: str = 'sites.json') -> 'list[Parser]':
+    def load_parsers(file_path: str = 'sites.json') -> list[Parser]:
         parsers = []
         try:
             with open(file_path) as f:
@@ -119,7 +119,7 @@ class Extractor:
         return parser.extract_links(text)
 
 
-def split_seen_and_unseen(ads: dict) -> 'tuple[list, list]':  # TODO: Make dict type hinting more specific
+def split_seen_and_unseen(ads: dict) -> tuple[list, list]:  # TODO: Make dict type hinting more specific
     """
     Splits a list of ads into two lists - seen and unseen.
 
@@ -152,7 +152,7 @@ def create_file(filename: str) -> 'None':
         logging.info(f'{filename} has been created.')
 
 
-def get_history(filename: str) -> 'set(str)':
+def get_history(filename: str) -> set(str):
     """
     Attempts to load a set of previously seen ads from a text file called "seen.txt" in the current working directory. If the file does not exist or cannot be loaded, an empty set is returned.
     Returns:

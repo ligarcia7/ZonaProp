@@ -75,7 +75,7 @@ class Parser:
         soup = BeautifulSoup(contents, "lxml")
         ads = soup.select(self.link_regex)
         if not ads:
-            logging.warning("Not able to extract ads in %s, check regex: %s", self.website, self.link_regex)
+            logging.warning(f"Not able to extract ads in {self.website}, check regex: {self.link_regex}")
             yield {}
         for ad in ads:
             href = ad["href"]
@@ -207,14 +207,14 @@ def _main() -> None:
 
         while True:
             url = url_paginator(query, page=page)
-            logging.debug("Extracting from: %s", url)
+            logging.debug(f"Extracting from: {url}")
             res = scraper.get(url)
             extractor = Extractor()
             ads = list(extractor.extract_ads(url, res.text))
 
             seen, unseen = split_seen_and_unseen(ads)
             ad_count =+ len(unseen)
-            logging.info("%s seen ads, %s unseen ads", len(seen), len(unseen))
+            logging.info(f"{len(seen)} seen ads, {len(unseen)} unseen ads")
 
             for u in unseen:
                 telegram_notify(u["url"])

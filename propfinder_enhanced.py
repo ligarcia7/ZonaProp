@@ -1,3 +1,4 @@
+from __future__ import annotations
 import requests
 from bs4 import BeautifulSoup
 from hashlib import sha1
@@ -18,6 +19,7 @@ logging.basicConfig(
 
 genericQueries = {
  "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-3-habitaciones-mas-de-1-garage-30000-230000-dolar-orden-publicado-descendente.html",
+ "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-3-habitaciones-mas-de-1-garage-231000-245000-dolar-orden-publicado-descendente.html",
  "https://www.zonaprop.com.ar/departamentos-ph-venta-palermo-belgrano-colegiales-nunez-mas-de-2-banos-mas-de-2-habitaciones-mas-de-1-garage-30000-200000-dolar-orden-publicado-descendente.html",
 }
 
@@ -73,7 +75,7 @@ class Parser:
         soup = BeautifulSoup(contents, "lxml")
         ads = soup.select(self.link_regex)
         if not ads:
-            logging.warning("Not able to extract ads in %s, check regex: %s", self.website, self.link_regex)
+            logging.warning(f"Not able to extract ads in {self.website}, check regex: {self.link_regex}")
             yield {}
         for ad in ads:
             href = ad["href"]
@@ -127,7 +129,7 @@ def split_seen_and_unseen(ads: dict) -> tuple[list, list]:  # TODO: Make dict ty
     Returns:
     tuple: A tuple containing two lists - seen and unseen - where seen is a list of ads that have already been seen, and unseen is a list of ads that have not been seen.
     """
-    history = get_history()
+    history = get_history(filename='seen.txt')
     seen = [a for a in ads if a["id"] in history]
     unseen = [a for a in ads if a["id"] not in history]
     return seen, unseen
@@ -141,25 +143,40 @@ def sleep_func(_min: int = 1, _max: int = 5) -> None:
     logging.info(f"Sleeping for {delay} s")
     sleep(delay)
 
-def get_history():  # TODO: this can return both a dict or a set. Make it consistent.
+
+def create_file(filename: str) -> 'None':
+    """
+    Creates file and return an empty dictionary
+    """
+    with open(filename, "w") as f:
+        logging.info(f'{filename} has been created.')
+
+
+def get_history(filename: str) -> set(str):
     """
     Attempts to load a set of previously seen ads from a text file called "seen.txt" in the current working directory. If the file does not exist or cannot be loaded, an empty set is returned.
     Returns:
     set: A set of previously seen ad IDs.
     """
     try:
-        with open("seen.txt", "r") as f:
+        with open(filename) as f:
             return {l.rstrip() for l in f.readlines()}
-    except:
-        return set()
+    except FileNotFoundError:
+        logging.info(f'{filename} not found.')
+        try:
+            create_file(filename)
+            return {}
+        except OSError as e:
+            logging.error(f"Couldn't create {filename} due to {e}")
+            return {}
 
 
-def telegram_notify(ad: dict) -> None:  # TODO: Make dict type hinting more specific
+def telegram_notify(msg:str) -> None:  # TODO: Make dict type hinting more specific
     """
     Sends a notification to a Telegram chat room containing the full URL of a new ad.
     """
     botID, roomID = get_telegram_keys()
-    url = "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}".format(botID, roomID, ad["url"])
+    url = "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}".format(botID, roomID, msg)
     _ = requests.get(url)
 
 
@@ -180,6 +197,7 @@ def url_paginator(url: str, page: int = 0) -> str:
 
 
 def _main() -> None:
+    ad_count = 0
     scraper = cloudscraper.create_scraper(browser={
         'custom': 'ScraperBot/1.0'
     }, delay=10)
@@ -189,25 +207,30 @@ def _main() -> None:
 
         while True:
             url = url_paginator(query, page=page)
-            logging.debug("Extracting from: %s", url)
+            logging.debug(f"Extracting from: {url}")
             res = scraper.get(url)
             extractor = Extractor()
             ads = list(extractor.extract_ads(url, res.text))
 
             seen, unseen = split_seen_and_unseen(ads)
-            logging.info("%s seen ads, %s unseen ads", len(seen), len(unseen))
+            ad_count =+ len(unseen)
+            logging.info(f"{len(seen)} seen ads, {len(unseen)} unseen ads")
 
             for u in unseen:
-                telegram_notify(u)
+                telegram_notify(u["url"])
+
 
             mark_as_seen(unseen)
 
-            logging.info("Done")
-            if page != 20:
+            if unseen:
                 page += 1
                 sleep_func()
             else:
+                logging.info('No unseen ads. Moving on.')
                 break
+    finalMsj = f'Process completed. Found {ad_count} unseen ads.'
+    telegram_notify(finalMsj)
+    logging.info(finalMsj)
 
 
 if __name__ == "__main__":

@@ -213,7 +213,6 @@ def _main() -> None:
             ads = list(extractor.extract_ads(url, res.text))
 
             seen, unseen = split_seen_and_unseen(ads)
-            ad_count += len(unseen)
             logging.info(f"{len(seen)} seen ads, {len(unseen)} unseen ads")
 
             for u in unseen:
@@ -224,6 +223,7 @@ def _main() -> None:
 
             if unseen:
                 page += 1
+                ad_count += len(unseen)
                 sleep_func()
             else:
                 logging.info('No unseen ads. Moving on.')
